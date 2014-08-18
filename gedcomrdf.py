@@ -5,8 +5,9 @@ from rdflib import RDF, Literal, BNode
 
 
 def gedcom2rdf(gedcom_filename, rdf_filename):
-    gedcomfile = gedcom.Gedcom(gedcom_filename)
-    gedcom_individuals = [i for i in gedcomfile.element_list() if i.is_individual()]
+    with open(gedcom_filename) as fp:
+        gedcomfile = gedcom.parse(fp)
+    gedcom_individuals = gedcomfile.individuals
 
     output_graph = rdflib.Graph()
 
@@ -17,36 +18,51 @@ def gedcom2rdf(gedcom_filename, rdf_filename):
     for gedcom_individual in gedcom_individuals:
         person = BNode()
         output_graph.add( (person, RDF.type, FOAF.Person) )
-        firstname, lastname = gedcom_individual.name()
+        firstname, lastname = gedcom_individual.name
         if firstname:
             output_graph.add( (person, FOAF.givenName, Literal(firstname) ) )
         if lastname:
             output_graph.add( (person, FOAF.familyName, Literal(lastname) ) )
 
         # Birth
-        dob, place_of_birth = gedcom_individual.birth()
-        if dob or place_of_birth:
+        try:
+            birth = gedcom_individual.birth
+        except IndexError:
+            pass
+        else:
             birth_node = BNode()
             output_graph.add( (person, bio.Birth, birth_node) )
             output_graph.add( (birth_node, RDF.type, bio.Birth) )
             output_graph.add( (birth_node, bio.principal, person) )
-        if dob:
-            output_graph.add( (birth_node, DC.date, Literal(dob)) )
-            output_graph.add( (birth_node, bio.date, Literal(dob)) )
-        if place_of_birth:
-            output_graph.add( (birth_node, bio.place, Literal(place_of_birth)) )
+            try:
+                output_graph.add( (birth_node, DC.date, Literal(birth.date)) )
+                output_graph.add( (birth_node, bio.date, Literal(birth.date)) )
+            except IndexError:
+                pass
+            try:
+                output_graph.add( (birth_node, bio.place, Literal(birth.place)) )
+            except IndexError:
+                pass
 
-        # Death
-        death_date, place_of_death = gedcom_individual.death()
-        if death_date or place_of_death:
+        # death
+        try:
+            death = gedcom_individual.death
+        except IndexError:
+            pass
+        else:
             death_node = BNode()
             output_graph.add( (person, bio.Death, death_node) )
             output_graph.add( (death_node, RDF.type, bio.Death) )
             output_graph.add( (death_node, bio.principal, person) )
-        if death_date:
-            output_graph.add( (death_node, DC.date, Literal(death_date)) )
-            output_graph.add( (death_node, bio.date, Literal(death_date)) )
-
+            try:
+                output_graph.add( (death_node, DC.date, Literal(death.date)) )
+                output_graph.add( (death_node, bio.date, Literal(death.date)) )
+            except IndexError:
+                pass
+            try:
+                output_graph.add( (death_node, bio.place, Literal(death.place)) )
+            except IndexError:
+                pass
 
 
     with open(rdf_filename, 'w') as fp:
