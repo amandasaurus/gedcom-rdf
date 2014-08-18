@@ -15,9 +15,14 @@ def gedcom2rdf(gedcom_filename, rdf_filename):
     output_graph.bind("bio", bio)
     output_graph.bind("foaf", FOAF)
 
+    gedcomid_to_node = {}
+
     for gedcom_individual in gedcom_individuals:
         person = BNode()
         output_graph.add( (person, RDF.type, FOAF.Person) )
+
+        gedcomid_to_node[gedcom_individual.id] = person
+
         firstname, lastname = gedcom_individual.name
         if firstname:
             output_graph.add( (person, FOAF.givenName, Literal(firstname) ) )
@@ -73,6 +78,18 @@ def gedcom2rdf(gedcom_filename, rdf_filename):
                 output_graph.add( (death_node, bio.place, Literal(death.place)) )
             except IndexError:
                 pass
+
+
+    # Loop again, so every person has a node now
+    for gedcomid, person in gedcomid_to_node.items():
+        gedcom_individual = gedcomfile[gedcomid]
+        father = gedcom_individual.father
+        if father:
+            output_graph.add( (person, bio.father, gedcomid_to_node[father.id]) )
+        mother = gedcom_individual.mother
+        if mother:
+            output_graph.add( (person, bio.mother, gedcomid_to_node[mother.id]) )
+        
 
 
     with open(rdf_filename, 'w') as fp:
