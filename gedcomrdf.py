@@ -11,6 +11,8 @@ def gedcom2rdf(gedcom_filename, rdf_filename):
     output_graph = rdflib.Graph()
 
     bio = Namespace("http://purl.org/vocab/bio/0.1/")
+    output_graph.bind("bio", bio)
+    output_graph.bind("foaf", FOAF)
 
     for gedcom_individual in gedcom_individuals:
         person = BNode()
