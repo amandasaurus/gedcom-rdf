@@ -24,6 +24,16 @@ def gedcom2rdf(gedcom_filename, rdf_filename):
         if lastname:
             output_graph.add( (person, FOAF.familyName, Literal(lastname) ) )
 
+        try:
+            gender = gedcom_individual.gender
+            if gender.lower() == 'f':
+                gender = 'female'
+            elif gender.lower() == 'm':
+                gender = 'male'
+            output_graph.add( (person, FOAF.gender, Literal(gender)) )
+        except IndexError:
+            pass
+
         # Birth
         try:
             birth = gedcom_individual.birth
