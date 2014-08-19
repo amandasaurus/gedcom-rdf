@@ -5,8 +5,7 @@ from rdflib import RDF, Literal, BNode
 
 
 def gedcom2rdf(gedcom_filename, rdf_filename):
-    with open(gedcom_filename) as fp:
-        gedcomfile = gedcom.parse(fp)
+    gedcomfile = gedcom.parse_filename(gedcom_filename)
     gedcom_individuals = gedcomfile.individuals
 
     output_graph = rdflib.Graph()
@@ -89,6 +88,30 @@ def gedcom2rdf(gedcom_filename, rdf_filename):
         mother = gedcom_individual.mother
         if mother:
             output_graph.add( (person, bio.mother, gedcomid_to_node[mother.id]) )
+
+    # loop over all the families and add in all the marriages
+    for family in gedcomfile.families:
+        if 'MARR' in family:
+            partners = family.get_list("HUSB") + family.get_list("WIFE")
+            if len(partners) == 0:
+                continue
+            marriage_node = BNode()
+            output_graph.add( (marriage_node, RDF.type, bio.Marriage) )
+            for partner in partners:
+                output_graph.add( (marriage_node, bio.partner, gedcomid_to_node[partner.as_individual().id]) )
+
+            try:
+                output_graph.add( (marriage_node, DC.date, Literal(family['MARR'].date)) )
+                output_graph.add( (marriage_node, bio.date, Literal(family['MARR'].date)) )
+            except IndexError:
+                pass
+            try:
+                output_graph.add( (marriage_node, bio.place, Literal(family['MARR'].place)) )
+            except IndexError:
+                pass
+                                
+
+            
         
 
 
@@ -97,3 +120,4 @@ def gedcom2rdf(gedcom_filename, rdf_filename):
 
 
 gedcom2rdf('BUELL001.GED', 'buell.ttl')
+#gedcom2rdf('sample.ged', 'sample.ttl')
