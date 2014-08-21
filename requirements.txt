@@ -1,2 +1,3 @@
+six
 rdflib
 git+https://github.com/madprime/python-gedcom.git
