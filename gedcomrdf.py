@@ -4,7 +4,7 @@ import rdflib
 import gedcom
 from gedcom import Individual
 from rdflib.namespace import DC, FOAF, Namespace
-from rdflib import RDF, Literal, BNode
+from rdflib import RDF, Literal, BNode, URIRef
 
 
 def gedcom2rdf_files(gedcom_filename, rdf_filename):
@@ -90,6 +90,11 @@ def gedcom2rdf(gedcomfile):
             except IndexError:
                 pass
 
+        # notes
+        note = gedcom_individual.note
+        if note:
+            output_graph.add( (person, URIRef("note"), Literal(note)) )
+
 
     # Loop again, so every person has a node now
     for gedcomid, person in gedcomid_to_node.items():
@@ -152,18 +157,18 @@ def rdf2gedcom(rdf_graph):
     for person in people:
         uri, firstname, lastname, gender = person
             # use .value to turn rdf Literals in strings
-        firstname = firstname.value
-        lastname = lastname.value
-        gender = gender.value
         individual = gedcomfile.individual()
         if firstname or lastname:
             name = gedcomfile.element("NAME")
             individual.add_child_element(name)
             if firstname:
+                firstname = firstname.value
                 name.add_child_element(gedcomfile.element("GIVN", value=firstname))
             if lastname:
+                lastname = lastname.value
                 name.add_child_element(gedcomfile.element("SURN", value=lastname))
         if gender:
+            gender = gender.value
             if gender == 'female':
                 gender = 'F'
             elif gender == 'male':
@@ -171,6 +176,19 @@ def rdf2gedcom(rdf_graph):
             else:
                 raise NonGedcomRecongisedSex(rdfsex=gender)
             individual.add_child_element(gedcomfile.element('SEX', value=gender))
+
+            # notes
+            for note in rdf_graph.objects(uri, URIRef("note")):
+                note = note.value
+                if "\n" in note:
+                    subnotes = note.split("\n")
+                    note_node = gedcomfile.element("NOTE", value=subnotes[0])
+                    for subnote in subnotes[1:]:
+                        note_node.add_child_element(gedcomfile.element("CONT", value=subnote))
+                else:
+                    note_node = gedcomfile.element("NOTE", value=note)
+                individual.add_child_element(note_node)
+
 
         gedcomfile.add_element(individual)
         personuri_to_gedcom[uri] = individual
