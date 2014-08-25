@@ -164,6 +164,7 @@ def rdf2gedcom(rdf_graph):
     for person in people:
         uri, firstname, lastname, gender, birthdate, birthplace, deathdate, deathplace = person
         individual = gedcomfile.individual()
+        # Name
         if firstname or lastname:
             name = gedcomfile.element("NAME")
             individual.add_child_element(name)
@@ -173,6 +174,8 @@ def rdf2gedcom(rdf_graph):
             if lastname:
                 lastname = lastname.value
                 name.add_child_element(gedcomfile.element("SURN", value=lastname))
+
+        # Gender
         if gender:
             gender = gender.value
             if gender == 'female':
