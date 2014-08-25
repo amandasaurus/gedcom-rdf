@@ -6,6 +6,7 @@ from gedcom import Individual
 from rdflib.namespace import DC, FOAF, Namespace
 from rdflib import RDF, Literal, BNode, URIRef
 
+BIO = Namespace("http://purl.org/vocab/bio/0.1/")
 
 def gedcom2rdf_files(gedcom_filename, rdf_filename):
     gedcomfile = gedcom.parse_filename(gedcom_filename)
@@ -22,8 +23,7 @@ def gedcom2rdf(gedcomfile):
 
     output_graph = rdflib.Graph()
 
-    bio = Namespace("http://purl.org/vocab/bio/0.1/")
-    output_graph.bind("bio", bio)
+    output_graph.bind("bio", BIO)
     output_graph.bind("foaf", FOAF)
 
     gedcomid_to_node = {}
@@ -57,16 +57,16 @@ def gedcom2rdf(gedcomfile):
             pass
         else:
             birth_node = BNode()
-            output_graph.add( (person, bio.Birth, birth_node) )
-            output_graph.add( (birth_node, RDF.type, bio.Birth) )
-            output_graph.add( (birth_node, bio.principal, person) )
+            output_graph.add( (person, BIO.Birth, birth_node) )
+            output_graph.add( (birth_node, RDF.type, BIO.Birth) )
+            output_graph.add( (birth_node, BIO.principal, person) )
             try:
                 output_graph.add( (birth_node, DC.date, Literal(birth.date)) )
-                output_graph.add( (birth_node, bio.date, Literal(birth.date)) )
+                output_graph.add( (birth_node, BIO.date, Literal(birth.date)) )
             except IndexError:
                 pass
             try:
-                output_graph.add( (birth_node, bio.place, Literal(birth.place)) )
+                output_graph.add( (birth_node, BIO.place, Literal(birth.place)) )
             except IndexError:
                 pass
 
@@ -77,16 +77,16 @@ def gedcom2rdf(gedcomfile):
             pass
         else:
             death_node = BNode()
-            output_graph.add( (person, bio.Death, death_node) )
-            output_graph.add( (death_node, RDF.type, bio.Death) )
-            output_graph.add( (death_node, bio.principal, person) )
+            output_graph.add( (person, BIO.Death, death_node) )
+            output_graph.add( (death_node, RDF.type, BIO.Death) )
+            output_graph.add( (death_node, BIO.principal, person) )
             try:
                 output_graph.add( (death_node, DC.date, Literal(death.date)) )
-                output_graph.add( (death_node, bio.date, Literal(death.date)) )
+                output_graph.add( (death_node, BIO.date, Literal(death.date)) )
             except IndexError:
                 pass
             try:
-                output_graph.add( (death_node, bio.place, Literal(death.place)) )
+                output_graph.add( (death_node, BIO.place, Literal(death.place)) )
             except IndexError:
                 pass
 
@@ -95,16 +95,21 @@ def gedcom2rdf(gedcomfile):
         if note:
             output_graph.add( (person, URIRef("note"), Literal(note)) )
 
+        # nobile title
+        title = gedcom_individual.title
+        if title:
+            output_graph.add( (person, BIO.NobleTitle, Literal(title)) )
+
 
     # Loop again, so every person has a node now
     for gedcomid, person in gedcomid_to_node.items():
         gedcom_individual = gedcomfile[gedcomid]
         father = gedcom_individual.father
         if father:
-            output_graph.add( (person, bio.father, gedcomid_to_node[father.id]) )
+            output_graph.add( (person, BIO.father, gedcomid_to_node[father.id]) )
         mother = gedcom_individual.mother
         if mother:
-            output_graph.add( (person, bio.mother, gedcomid_to_node[mother.id]) )
+            output_graph.add( (person, BIO.mother, gedcomid_to_node[mother.id]) )
 
     # loop over all the families and add in all the marriages
     for family in gedcomfile.families:
@@ -113,17 +118,17 @@ def gedcom2rdf(gedcomfile):
             if len(partners) == 0:
                 continue
             marriage_node = BNode()
-            output_graph.add( (marriage_node, RDF.type, bio.Marriage) )
+            output_graph.add( (marriage_node, RDF.type, BIO.Marriage) )
             for partner in partners:
-                output_graph.add( (marriage_node, bio.partner, gedcomid_to_node[partner.as_individual().id]) )
+                output_graph.add( (marriage_node, BIO.partner, gedcomid_to_node[partner.as_individual().id]) )
 
             try:
                 output_graph.add( (marriage_node, DC.date, Literal(family['MARR'].date)) )
-                output_graph.add( (marriage_node, bio.date, Literal(family['MARR'].date)) )
+                output_graph.add( (marriage_node, BIO.date, Literal(family['MARR'].date)) )
             except IndexError:
                 pass
             try:
-                output_graph.add( (marriage_node, bio.place, Literal(family['MARR'].place)) )
+                output_graph.add( (marriage_node, BIO.place, Literal(family['MARR'].place)) )
             except IndexError:
                 pass
 
