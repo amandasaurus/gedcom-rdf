@@ -4,8 +4,9 @@ import rdflib
 import gedcom
 from gedcom import Individual
 from rdflib.namespace import DC, FOAF, Namespace
-from rdflib import RDF, Literal, BNode
+from rdflib import RDF, Literal, BNode, URIRef
 
+BIO = Namespace("http://purl.org/vocab/bio/0.1/")
 
 def gedcom2rdf_files(gedcom_filename, rdf_filename):
     gedcomfile = gedcom.parse_filename(gedcom_filename)
@@ -22,8 +23,7 @@ def gedcom2rdf(gedcomfile):
 
     output_graph = rdflib.Graph()
 
-    bio = Namespace("http://purl.org/vocab/bio/0.1/")
-    output_graph.bind("bio", bio)
+    output_graph.bind("bio", BIO)
     output_graph.bind("foaf", FOAF)
 
     gedcomid_to_node = {}
@@ -57,16 +57,16 @@ def gedcom2rdf(gedcomfile):
             pass
         else:
             birth_node = BNode()
-            output_graph.add( (person, bio.Birth, birth_node) )
-            output_graph.add( (birth_node, RDF.type, bio.Birth) )
-            output_graph.add( (birth_node, bio.principal, person) )
+            output_graph.add( (person, BIO.Birth, birth_node) )
+            output_graph.add( (birth_node, RDF.type, BIO.Birth) )
+            output_graph.add( (birth_node, BIO.principal, person) )
             try:
                 output_graph.add( (birth_node, DC.date, Literal(birth.date)) )
-                output_graph.add( (birth_node, bio.date, Literal(birth.date)) )
+                output_graph.add( (birth_node, BIO.date, Literal(birth.date)) )
             except IndexError:
                 pass
             try:
-                output_graph.add( (birth_node, bio.place, Literal(birth.place)) )
+                output_graph.add( (birth_node, BIO.place, Literal(birth.place)) )
             except IndexError:
                 pass
 
@@ -77,18 +77,28 @@ def gedcom2rdf(gedcomfile):
             pass
         else:
             death_node = BNode()
-            output_graph.add( (person, bio.Death, death_node) )
-            output_graph.add( (death_node, RDF.type, bio.Death) )
-            output_graph.add( (death_node, bio.principal, person) )
+            output_graph.add( (person, BIO.Death, death_node) )
+            output_graph.add( (death_node, RDF.type, BIO.Death) )
+            output_graph.add( (death_node, BIO.principal, person) )
             try:
                 output_graph.add( (death_node, DC.date, Literal(death.date)) )
-                output_graph.add( (death_node, bio.date, Literal(death.date)) )
+                output_graph.add( (death_node, BIO.date, Literal(death.date)) )
             except IndexError:
                 pass
             try:
-                output_graph.add( (death_node, bio.place, Literal(death.place)) )
+                output_graph.add( (death_node, BIO.place, Literal(death.place)) )
             except IndexError:
                 pass
+
+        # notes
+        note = gedcom_individual.note
+        if note:
+            output_graph.add( (person, URIRef("note"), Literal(note)) )
+
+        # nobile title
+        title = gedcom_individual.title
+        if title:
+            output_graph.add( (person, BIO.NobleTitle, Literal(title)) )
 
 
     # Loop again, so every person has a node now
@@ -96,10 +106,10 @@ def gedcom2rdf(gedcomfile):
         gedcom_individual = gedcomfile[gedcomid]
         father = gedcom_individual.father
         if father:
-            output_graph.add( (person, bio.father, gedcomid_to_node[father.id]) )
+            output_graph.add( (person, BIO.father, gedcomid_to_node[father.id]) )
         mother = gedcom_individual.mother
         if mother:
-            output_graph.add( (person, bio.mother, gedcomid_to_node[mother.id]) )
+            output_graph.add( (person, BIO.mother, gedcomid_to_node[mother.id]) )
 
     # loop over all the families and add in all the marriages
     for family in gedcomfile.families:
@@ -108,17 +118,17 @@ def gedcom2rdf(gedcomfile):
             if len(partners) == 0:
                 continue
             marriage_node = BNode()
-            output_graph.add( (marriage_node, RDF.type, bio.Marriage) )
+            output_graph.add( (marriage_node, RDF.type, BIO.Marriage) )
             for partner in partners:
-                output_graph.add( (marriage_node, bio.partner, gedcomid_to_node[partner.as_individual().id]) )
+                output_graph.add( (marriage_node, BIO.partner, gedcomid_to_node[partner.as_individual().id]) )
 
             try:
                 output_graph.add( (marriage_node, DC.date, Literal(family['MARR'].date)) )
-                output_graph.add( (marriage_node, bio.date, Literal(family['MARR'].date)) )
+                output_graph.add( (marriage_node, BIO.date, Literal(family['MARR'].date)) )
             except IndexError:
                 pass
             try:
-                output_graph.add( (marriage_node, bio.place, Literal(family['MARR'].place)) )
+                output_graph.add( (marriage_node, BIO.place, Literal(family['MARR'].place)) )
             except IndexError:
                 pass
 
@@ -138,32 +148,28 @@ class NonGedcomRecongisedSex(UnconvertableRDFGraph):
 def rdf2gedcom(rdf_graph):
     gedcomfile = gedcom.GedcomFile()
     # all individuals
-    people = rdf_graph.query("""
-        SELECT ?personuri ?firstname ?lastname ?gender
-        WHERE {
-            ?personuri a foaf:Person
-            OPTIONAL { ?personuri foaf:givenName ?firstname }
-            OPTIONAL { ?personuri foaf:familyName ?lastname }
-            OPTIONAL { ?personuri foaf:gender ?gender }
-        }""")
-
     personuri_to_gedcom = {}
 
-    for person in people:
-        uri, firstname, lastname, gender = person
-            # use .value to turn rdf Literals in strings
-        firstname = firstname.value
-        lastname = lastname.value
-        gender = gender.value
+    for person in rdf_graph.subjects(RDF.type, FOAF.Person):
+        uri = person
+        firstname = rdf_graph.value(uri, FOAF.givenName)
+        lastname = rdf_graph.value(uri, FOAF.familyName)
+        gender = rdf_graph.value(uri, FOAF.gender)
         individual = gedcomfile.individual()
+        # Name
         if firstname or lastname:
             name = gedcomfile.element("NAME")
             individual.add_child_element(name)
             if firstname:
+                firstname = firstname.value
                 name.add_child_element(gedcomfile.element("GIVN", value=firstname))
             if lastname:
+                lastname = lastname.value
                 name.add_child_element(gedcomfile.element("SURN", value=lastname))
+
+        # Gender
         if gender:
+            gender = gender.value
             if gender == 'female':
                 gender = 'F'
             elif gender == 'male':
@@ -172,32 +178,128 @@ def rdf2gedcom(rdf_graph):
                 raise NonGedcomRecongisedSex(rdfsex=gender)
             individual.add_child_element(gedcomfile.element('SEX', value=gender))
 
+        # notes
+        for note in rdf_graph.objects(uri, URIRef("note")):
+            note = note.value
+            if "\n" in note:
+                subnotes = note.split("\n")
+                note_node = gedcomfile.element("NOTE", value=subnotes[0])
+                for subnote in subnotes[1:]:
+                    note_node.add_child_element(gedcomfile.element("CONT", value=subnote))
+            else:
+                note_node = gedcomfile.element("NOTE", value=note)
+            individual.add_child_element(note_node)
+
+        # Title
+        title = rdf_graph.value(uri, BIO.NobleTitle)
+        if title:
+            individual.add_child_element(gedcomfile.element("TITL", value=title))
+
+        # Birth
+        birth_node = rdf_graph.value(uri, BIO.Birth)
+        if birth_node:
+            birthdate = rdf_graph.value(birth_node, BIO.date)
+            birthplace = rdf_graph.value(birth_node, BIO.place)
+            gd_birth = gedcomfile.element("BIRT")
+            individual.add_child_element(gd_birth)
+            if birthdate:
+                gd_birth.add_child_element(gedcomfile.element("DATE", value=birthdate))
+            if birthplace:
+                gd_birth.add_child_element(gedcomfile.element("PLAC", value=birthplace))
+
+        # Death
+        death_node = rdf_graph.value(uri, BIO.Death)
+        if death_node:
+            deathdate = rdf_graph.value(death_node, BIO.date)
+            deathplace = rdf_graph.value(death_node, BIO.place)
+            gd_death = gedcomfile.element("DEAT")
+            individual.add_child_element(gd_death)
+            if deathdate:
+                gd_death.add_child_element(gedcomfile.element("DATE", value=deathdate))
+            if deathplace:
+                gd_death.add_child_element(gedcomfile.element("PLAC", value=deathplace))
+
+
         gedcomfile.add_element(individual)
         personuri_to_gedcom[uri] = individual
+
+    print "All marriages"
 
     # try to figure out families
     # Simple families, 2 people
     # look for a marriage event between 2 people of different genders.
-    marriages = rdf_graph.query("""
-        SELECT ?marriageuri ?malepartneruri ?femalepartneruri ?date ?place
-        WHERE {
-            ?marriageuri a bio:Marriage ;
-                bio:partner ?malepartneruri , ?femalepartneruri .
-            ?malepartneruri a foaf:Person ; foaf:gender 'male' .
-            ?femalepartneruri a foaf:Person ; foaf:gender 'female' .
-            OPTIONAL { ?marriageuri bio:date ?date . }
-            OPTIONAL { ?marriageuri bio:place ?place . }
-        }""")
+    marriage_uri_to_gedcom_family = {}
 
-    for marriage in marriages:
-        marriageuri, malepartneruri, femalepartneruri, date, place = marriage
-        #date, place = date.value if date else N, place.value
+    for marriageuri in rdf_graph.subjects(RDF.type, BIO.Marriage):
+        partners = list(rdf_graph.objects(marriageuri, BIO.partner))
+        if len(partners) > 2:
+            raise UnconvertableRDFGraph()
+
+        genders = [rdf_graph.value(p, FOAF.gender) for p in partners]
+        if genders == ['male', 'male'] or genders == ['female', 'female']:
+            raise UnconvertableRDFGraph(uri=marriageuri)
+
+        malepartneruri, femalepartneruri = None, None
+        for partner, gender in zip(partners, genders):
+            if gender == 'male':
+                malepartneruri = partner
+            elif gender == 'female':
+                femalepartneruri = partner
+            else:
+                raise NonGedcomRecongisedSex(rdfsex=gender)
+
+        print "Looking at marriage", malepartneruri
 
         family = gedcomfile.family()
-        family.add_child_element(gedcomfile.element("HUSB", value=personuri_to_gedcom[malepartneruri].id))
-        family.add_child_element(gedcom.(value=personuri_to_gedcom[femalepartneruri].id))
+        if malepartneruri:
+            husb = personuri_to_gedcom[malepartneruri]
+            family.add_child_element(gedcomfile.element("HUSB", value=husb.id))
+        if femalepartneruri:
+            wife = personuri_to_gedcom[femalepartneruri]
+            family.add_child_element(gedcomfile.element("WIFE", value=wife.id))
 
+        marr = gedcomfile.element("MARR")
+        family.add_child_element(marr)
+
+        date = rdf_graph.value(marriageuri, BIO.date)
+        if date:
+            marr.add_child_element(gedcomfile.element("DATE", value=date))
+        place = rdf_graph.value(marriageuri, BIO.date)
+        if place:
+            marr.add_child_element(gedcomfile.element("PLAC", value=place))
+
+
+        # id will be generated here
         gedcomfile.add_element(family)
+
+        if malepartneruri:
+            husb.add_child_element(gedcomfile.element("FAMS", value=family.id))
+        if femalepartneruri:
+            wife.add_child_element(gedcomfile.element("FAMS", value=family.id))
+
+        marriage_uri_to_gedcom_family[marriageuri] = family
+
+    # find simple families
+    # Someone who's mother and father are married
+    parents = rdf_graph.query("""
+        SELECT ?marriageuri ?child ?father ?mother
+        WHERE {
+            ?marriageuri a bio:Marriage .
+            ?childuri a foaf:Person .
+            OPTIONAL { ?marriageuri bio:partner ?father .
+                       ?father a foaf:Person ; foaf:gender 'male' .
+                       ?mother bio:father ?father . }
+            OPTIONAL { ?marriageuri bio:partner ?mother .
+                       ?mother a foaf:Person ; foaf:gender 'female' .
+                       ?child bio:mother ?mother . }
+        """)
+    for parents_row in parents:
+        marriage, child, father, mother = parents_row
+        if father is None and mother is None:
+            # No good
+            continue
+        
+
 
     return gedcomfile
 
