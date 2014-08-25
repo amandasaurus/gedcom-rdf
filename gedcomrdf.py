@@ -231,10 +231,11 @@ def rdf2gedcom(rdf_graph):
     marriages = rdf_graph.query("""
         SELECT ?marriageuri ?malepartneruri ?femalepartneruri ?date ?place
         WHERE {
-            ?marriageuri a bio:Marriage ;
-                bio:partner ?malepartneruri , ?femalepartneruri .
-            ?malepartneruri a foaf:Person ; foaf:gender 'male' .
-            ?femalepartneruri a foaf:Person ; foaf:gender 'female' .
+            ?marriageuri a bio:Marriage .
+            OPTIONAL { ?marriageuri bio:partner ?malepartneruri .
+                       ?malepartneruri a foaf:Person ; foaf:gender 'male' . }
+            OPTIONAL { ?marriageuri bio:partner ?femalepartneruri .
+                       ?femalepartneruri a foaf:Person ; foaf:gender 'female' . }
             OPTIONAL { ?marriageuri bio:date ?date . }
             OPTIONAL { ?marriageuri bio:place ?place . }
         }""")
