@@ -186,17 +186,17 @@ def rdf2gedcom(rdf_graph):
                 raise NonGedcomRecongisedSex(rdfsex=gender)
             individual.add_child_element(gedcomfile.element('SEX', value=gender))
 
-            # notes
-            for note in rdf_graph.objects(uri, URIRef("note")):
-                note = note.value
-                if "\n" in note:
-                    subnotes = note.split("\n")
-                    note_node = gedcomfile.element("NOTE", value=subnotes[0])
-                    for subnote in subnotes[1:]:
-                        note_node.add_child_element(gedcomfile.element("CONT", value=subnote))
-                else:
-                    note_node = gedcomfile.element("NOTE", value=note)
-                individual.add_child_element(note_node)
+        # notes
+        for note in rdf_graph.objects(uri, URIRef("note")):
+            note = note.value
+            if "\n" in note:
+                subnotes = note.split("\n")
+                note_node = gedcomfile.element("NOTE", value=subnotes[0])
+                for subnote in subnotes[1:]:
+                    note_node.add_child_element(gedcomfile.element("CONT", value=subnote))
+            else:
+                note_node = gedcomfile.element("NOTE", value=note)
+            individual.add_child_element(note_node)
         # Birth
         if birthdate or birthplace:
             gd_birth = gedcomfile.element("BIRT")
