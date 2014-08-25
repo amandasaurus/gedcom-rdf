@@ -242,7 +242,6 @@ def rdf2gedcom(rdf_graph):
 
     for marriage in marriages:
         marriageuri, malepartneruri, femalepartneruri, date, place = marriage
-        #date, place = date.value if date else N, place.value
 
         family = gedcomfile.family()
         if malepartneruri:
