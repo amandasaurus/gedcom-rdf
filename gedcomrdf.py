@@ -195,7 +195,7 @@ def rdf2gedcom(rdf_graph):
 
         family = gedcomfile.family()
         family.add_child_element(gedcomfile.element("HUSB", value=personuri_to_gedcom[malepartneruri].id))
-        family.add_child_element(gedcom.(value=personuri_to_gedcom[femalepartneruri].id))
+        family.add_child_element(gedcomfile.element("WIFE", value=personuri_to_gedcom[femalepartneruri].id))
 
         gedcomfile.add_element(family)
 
