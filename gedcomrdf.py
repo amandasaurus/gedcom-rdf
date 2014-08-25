@@ -149,19 +149,20 @@ def rdf2gedcom(rdf_graph):
     gedcomfile = gedcom.GedcomFile()
     # all individuals
     people = rdf_graph.query("""
-        SELECT ?personuri ?firstname ?lastname ?gender
+        SELECT ?personuri ?firstname ?lastname ?gender ?birthdate ?birthplace ?deathdate ?deathplace
         WHERE {
             ?personuri a foaf:Person
             OPTIONAL { ?personuri foaf:givenName ?firstname }
             OPTIONAL { ?personuri foaf:familyName ?lastname }
             OPTIONAL { ?personuri foaf:gender ?gender }
+            OPTIONAL { ?personuri bio:Birth [ bio:date ?birthdate ; bio:place ?birthplace ] }
+            OPTIONAL { ?personuri bio:Death [ bio:date ?deathdate ; bio:place ?deathplace ] }
         }""")
 
     personuri_to_gedcom = {}
 
     for person in people:
-        uri, firstname, lastname, gender = person
-            # use .value to turn rdf Literals in strings
+        uri, firstname, lastname, gender, birthdate, birthplace, deathdate, deathplace = person
         individual = gedcomfile.individual()
         if firstname or lastname:
             name = gedcomfile.element("NAME")
@@ -193,6 +194,23 @@ def rdf2gedcom(rdf_graph):
                 else:
                     note_node = gedcomfile.element("NOTE", value=note)
                 individual.add_child_element(note_node)
+        # Birth
+        if birthdate or birthplace:
+            gd_birth = gedcomfile.element("BIRT")
+            individual.add_child_element(gd_birth)
+            if birthdate:
+                gd_birth.add_child_element(gedcomfile.element("DATE", value=birthdate))
+            if birthplace:
+                gd_birth.add_child_element(gedcomfile.element("PLAC", value=birthplace))
+
+        # Death
+        if deathdate or deathplace:
+            gd_death = gedcomfile.element("DEAT")
+            individual.add_child_element(gd_death)
+            if deathdate:
+                gd_death.add_child_element(gedcomfile.element("DATE", value=deathdate))
+            if deathplace:
+                gd_death.add_child_element(gedcomfile.element("PLAC", value=deathplace))
 
 
         gedcomfile.add_element(individual)
