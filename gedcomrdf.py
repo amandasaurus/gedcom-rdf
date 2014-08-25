@@ -148,21 +148,13 @@ class NonGedcomRecongisedSex(UnconvertableRDFGraph):
 def rdf2gedcom(rdf_graph):
     gedcomfile = gedcom.GedcomFile()
     # all individuals
-    people = rdf_graph.query("""
-        SELECT ?personuri ?firstname ?lastname ?gender ?birthdate ?birthplace ?deathdate ?deathplace
-        WHERE {
-            ?personuri a foaf:Person
-            OPTIONAL { ?personuri foaf:givenName ?firstname }
-            OPTIONAL { ?personuri foaf:familyName ?lastname }
-            OPTIONAL { ?personuri foaf:gender ?gender }
-            OPTIONAL { ?personuri bio:Birth [ bio:date ?birthdate ; bio:place ?birthplace ] }
-            OPTIONAL { ?personuri bio:Death [ bio:date ?deathdate ; bio:place ?deathplace ] }
-        }""")
-
     personuri_to_gedcom = {}
 
-    for person in people:
-        uri, firstname, lastname, gender, birthdate, birthplace, deathdate, deathplace = person
+    for person in rdf_graph.subjects(RDF.type, FOAF.Person):
+        uri = person
+        firstname = rdf_graph.value(uri, FOAF.givenName)
+        lastname = rdf_graph.value(uri, FOAF.familyName)
+        gender = rdf_graph.value(uri, FOAF.gender)
         individual = gedcomfile.individual()
         # Name
         if firstname or lastname:
@@ -204,7 +196,10 @@ def rdf2gedcom(rdf_graph):
             individual.add_child_element(gedcomfile.element("TITL", value=title))
 
         # Birth
-        if birthdate or birthplace:
+        birth_node = rdf_graph.value(uri, BIO.Birth)
+        if birth_node:
+            birthdate = rdf_graph.value(birth_node, BIO.date)
+            birthplace = rdf_graph.value(birth_node, BIO.place)
             gd_birth = gedcomfile.element("BIRT")
             individual.add_child_element(gd_birth)
             if birthdate:
@@ -213,7 +208,10 @@ def rdf2gedcom(rdf_graph):
                 gd_birth.add_child_element(gedcomfile.element("PLAC", value=birthplace))
 
         # Death
-        if deathdate or deathplace:
+        death_node = rdf_graph.value(uri, BIO.Death)
+        if death_node:
+            deathdate = rdf_graph.value(death_node, BIO.date)
+            deathplace = rdf_graph.value(death_node, BIO.place)
             gd_death = gedcomfile.element("DEAT")
             individual.add_child_element(gd_death)
             if deathdate:
@@ -225,23 +223,32 @@ def rdf2gedcom(rdf_graph):
         gedcomfile.add_element(individual)
         personuri_to_gedcom[uri] = individual
 
+    print "All marriages"
+
     # try to figure out families
     # Simple families, 2 people
     # look for a marriage event between 2 people of different genders.
-    marriages = rdf_graph.query("""
-        SELECT ?marriageuri ?malepartneruri ?femalepartneruri ?date ?place
-        WHERE {
-            ?marriageuri a bio:Marriage .
-            OPTIONAL { ?marriageuri bio:partner ?malepartneruri .
-                       ?malepartneruri a foaf:Person ; foaf:gender 'male' . }
-            OPTIONAL { ?marriageuri bio:partner ?femalepartneruri .
-                       ?femalepartneruri a foaf:Person ; foaf:gender 'female' . }
-            OPTIONAL { ?marriageuri bio:date ?date . }
-            OPTIONAL { ?marriageuri bio:place ?place . }
-        }""")
+    marriage_uri_to_gedcom_family = {}
 
-    for marriage in marriages:
-        marriageuri, malepartneruri, femalepartneruri, date, place = marriage
+    for marriageuri in rdf_graph.subjects(RDF.type, BIO.Marriage):
+        partners = list(rdf_graph.objects(marriageuri, BIO.partner))
+        if len(partners) > 2:
+            raise UnconvertableRDFGraph()
+
+        genders = [rdf_graph.value(p, FOAF.gender) for p in partners]
+        if genders == ['male', 'male'] or genders == ['female', 'female']:
+            raise UnconvertableRDFGraph(uri=marriageuri)
+
+        malepartneruri, femalepartneruri = None, None
+        for partner, gender in zip(partners, genders):
+            if gender == 'male':
+                malepartneruri = partner
+            elif gender == 'female':
+                femalepartneruri = partner
+            else:
+                raise NonGedcomRecongisedSex(rdfsex=gender)
+
+        print "Looking at marriage", malepartneruri
 
         family = gedcomfile.family()
         if malepartneruri:
@@ -253,12 +260,13 @@ def rdf2gedcom(rdf_graph):
 
         marr = gedcomfile.element("MARR")
         family.add_child_element(marr)
+
+        date = rdf_graph.value(marriageuri, BIO.date)
         if date:
-            date = date.value
             marr.add_child_element(gedcomfile.element("DATE", value=date))
+        place = rdf_graph.value(marriageuri, BIO.date)
         if place:
-            place = place.value
-            marr.add_child_element(gedcomfile.element("PLAC", value=date))
+            marr.add_child_element(gedcomfile.element("PLAC", value=place))
 
 
         # id will be generated here
@@ -269,6 +277,28 @@ def rdf2gedcom(rdf_graph):
         if femalepartneruri:
             wife.add_child_element(gedcomfile.element("FAMS", value=family.id))
 
+        marriage_uri_to_gedcom_family[marriageuri] = family
+
+    # find simple families
+    # Someone who's mother and father are married
+    parents = rdf_graph.query("""
+        SELECT ?marriageuri ?child ?father ?mother
+        WHERE {
+            ?marriageuri a bio:Marriage .
+            ?childuri a foaf:Person .
+            OPTIONAL { ?marriageuri bio:partner ?father .
+                       ?father a foaf:Person ; foaf:gender 'male' .
+                       ?mother bio:father ?father . }
+            OPTIONAL { ?marriageuri bio:partner ?mother .
+                       ?mother a foaf:Person ; foaf:gender 'female' .
+                       ?child bio:mother ?mother . }
+        """)
+    for parents_row in parents:
+        marriage, child, father, mother = parents_row
+        if father is None and mother is None:
+            # No good
+            continue
+        
 
 
     return gedcomfile
