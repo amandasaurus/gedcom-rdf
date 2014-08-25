@@ -244,10 +244,32 @@ def rdf2gedcom(rdf_graph):
         #date, place = date.value if date else N, place.value
 
         family = gedcomfile.family()
-        family.add_child_element(gedcomfile.element("HUSB", value=personuri_to_gedcom[malepartneruri].id))
-        family.add_child_element(gedcomfile.element("WIFE", value=personuri_to_gedcom[femalepartneruri].id))
+        if malepartneruri:
+            husb = personuri_to_gedcom[malepartneruri]
+            family.add_child_element(gedcomfile.element("HUSB", value=husb.id))
+        if femalepartneruri:
+            wife = personuri_to_gedcom[femalepartneruri]
+            family.add_child_element(gedcomfile.element("WIFE", value=wife.id))
 
+        marr = gedcomfile.element("MARR")
+        family.add_child_element(marr)
+        if date:
+            date = date.value
+            marr.add_child_element(gedcomfile.element("DATE", value=date))
+        if place:
+            place = place.value
+            marr.add_child_element(gedcomfile.element("PLAC", value=date))
+
+
+        # id will be generated here
         gedcomfile.add_element(family)
+
+        if malepartneruri:
+            husb.add_child_element(gedcomfile.element("FAMS", value=family.id))
+        if femalepartneruri:
+            wife.add_child_element(gedcomfile.element("FAMS", value=family.id))
+
+
 
     return gedcomfile
 
