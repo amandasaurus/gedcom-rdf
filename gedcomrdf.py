@@ -197,6 +197,12 @@ def rdf2gedcom(rdf_graph):
             else:
                 note_node = gedcomfile.element("NOTE", value=note)
             individual.add_child_element(note_node)
+
+        # Title
+        title = rdf_graph.value(uri, BIO.NobleTitle)
+        if title:
+            individual.add_child_element(gedcomfile.element("TITL", value=title))
+
         # Birth
         if birthdate or birthplace:
             gd_birth = gedcomfile.element("BIRT")
