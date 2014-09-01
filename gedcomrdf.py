@@ -264,7 +264,7 @@ def rdf2gedcom(rdf_graph):
         date = rdf_graph.value(marriageuri, BIO.date)
         if date:
             marr.add_child_element(gedcomfile.element("DATE", value=date))
-        place = rdf_graph.value(marriageuri, BIO.date)
+        place = rdf_graph.value(marriageuri, BIO.place)
         if place:
             marr.add_child_element(gedcomfile.element("PLAC", value=place))
 
