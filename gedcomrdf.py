@@ -1,4 +1,5 @@
 import sys
+from collections import defaultdict
 
 import rdflib
 import gedcom
@@ -281,25 +282,38 @@ def rdf2gedcom(rdf_graph):
 
     # find simple families
     # Someone who's mother and father are married
-    parents = rdf_graph.query("""
-        SELECT ?marriageuri ?child ?father ?mother
+    # Find the all the children in a marriage
+    kids = rdf_graph.query("""
+        SELECT ?marriageuri ?child
         WHERE {
             ?marriageuri a bio:Marriage .
-            ?childuri a foaf:Person .
-            OPTIONAL { ?marriageuri bio:partner ?father .
-                       ?father a foaf:Person ; foaf:gender 'male' .
-                       ?mother bio:father ?father . }
-            OPTIONAL { ?marriageuri bio:partner ?mother .
-                       ?mother a foaf:Person ; foaf:gender 'female' .
-                       ?child bio:mother ?mother . }
+            ?child a foaf:Person .
+            ?marriageuri bio:partner ?father .
+            ?father a foaf:Person ; foaf:gender 'male' .
+            ?child bio:father ?father .
+            ?marriageuri bio:partner ?mother .
+            ?mother a foaf:Person ; foaf:gender 'female' .
+            ?child bio:mother ?mother .
+        }
         """)
-    for parents_row in parents:
-        marriage, child, father, mother = parents_row
-        if father is None and mother is None:
-            # No good
-            continue
-        
 
+    # For each 'child', find the families that it's a child of, and add the
+    # CHIL and FAMC tags to Family & Individual
+    familes_this_is_child_of = defaultdict(set)
+    for marriageuri, childuri, dont_care in kids:
+        familes_this_is_child_of[childuri].add(marriageuri)
+
+    for childuri in familes_this_is_child_of:
+        marriageuris = familes_this_is_child_of[childuri]
+        for marriageuri in marriageuris:
+            gedcom_family = marriage_uri_to_gedcom_family[marriageuri]
+            gedcom_child = personuri_to_gedcom[childuri]
+            gedcom_family.add_child_element(gedcomfile.element("CHIL", value=gedcom_child.id))
+            gedcom_child.add_child_element(gedcomfile.element("FAMC", value=gedcom_family.id))
+
+    #import pdb; pdb.set_trace()
+    # Now look for one parent families, i.e. just a dad or just a mum
+        
 
     return gedcomfile
 
