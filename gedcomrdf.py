@@ -235,7 +235,7 @@ def rdf2gedcom(rdf_graph):
         if len(partners) > 2:
             raise UnconvertableRDFGraph()
 
-        genders = [rdf_graph.value(p, FOAF.gender) for p in partners]
+        genders = [rdf_graph.value(p, FOAF.gender).value for p in partners]
         if genders == ['male', 'male'] or genders == ['female', 'female']:
             raise UnconvertableRDFGraph(uri=marriageuri)
 
