@@ -259,6 +259,30 @@ def rdf2gedcom(rdf_graph):
             wife = personuri_to_gedcom[femalepartneruri]
             family.add_child_element(gedcomfile.element("WIFE", value=wife.id))
 
+        # Try to find any children of these people
+        # people who are children of the mother and the father
+        children_to_add_to_family = []
+        if malepartneruri and femalepartneruri:
+            # both there, see if we have people who are children of both of these
+            kids_via_mother = set(rdf_graph.subjects(BIO.mother, femalepartneruri))
+            kids_via_father = set(rdf_graph.subjects(BIO.father, malepartneruri))
+            # TODO throw assertion/error if these 2 sets aren't the same? What should a GEDCOM file look like?
+            children_to_add_to_family = kids_via_father.intersection(kids_via_mother)
+        elif malepartneruri and not femalepartneruri:
+            # only have father so look for those children of this person
+            children_to_add_to_family = set(rdf_graph.subjects(BIO.father, malepartneruri))
+        elif not malepartneruri and femalepartneruri:
+            # only have father so look for those children of this person
+            children_to_add_to_family = set(rdf_graph.subjects(BIO.mother, femalepartneruri))
+        elif not malepartneruri and not femalepartneruri:
+            children_to_add_to_family = []
+
+        for childuri in children_to_add_to_family:
+            gedcom_child = personuri_to_gedcom[childuri]
+            family.add_child_element(gedcomfile.element("CHIL", value=gedcom_child.id))
+            gedcom_child.add_child_element(gedcomfile.element("FAMC", value=family.id))
+
+
         marr = gedcomfile.element("MARR")
         family.add_child_element(marr)
 
@@ -280,40 +304,7 @@ def rdf2gedcom(rdf_graph):
 
         marriage_uri_to_gedcom_family[marriageuri] = family
 
-    # find simple families
-    # Someone who's mother and father are married
-    # Find the all the children in a marriage
-    kids = rdf_graph.query("""
-        SELECT ?marriageuri ?child
-        WHERE {
-            ?marriageuri a bio:Marriage .
-            ?child a foaf:Person .
-            ?marriageuri bio:partner ?father .
-            ?father a foaf:Person ; foaf:gender 'male' .
-            ?child bio:father ?father .
-            ?marriageuri bio:partner ?mother .
-            ?mother a foaf:Person ; foaf:gender 'female' .
-            ?child bio:mother ?mother .
-        }
-        """)
 
-    # For each 'child', find the families that it's a child of, and add the
-    # CHIL and FAMC tags to Family & Individual
-    familes_this_is_child_of = defaultdict(set)
-    for marriageuri, childuri, dont_care in kids:
-        familes_this_is_child_of[childuri].add(marriageuri)
-
-    for childuri in familes_this_is_child_of:
-        marriageuris = familes_this_is_child_of[childuri]
-        for marriageuri in marriageuris:
-            gedcom_family = marriage_uri_to_gedcom_family[marriageuri]
-            gedcom_child = personuri_to_gedcom[childuri]
-            gedcom_family.add_child_element(gedcomfile.element("CHIL", value=gedcom_child.id))
-            gedcom_child.add_child_element(gedcomfile.element("FAMC", value=gedcom_family.id))
-
-    #import pdb; pdb.set_trace()
-    # Now look for one parent families, i.e. just a dad or just a mum
-        
 
     return gedcomfile
 
